@@ -185,6 +185,9 @@ document.addEventListener("DOMContentLoaded", () => {
     els.rubricFileName.textContent = `✓ ${f.name}`;
   });
 
+  // OCR local (sin IA)
+  $("btn-ocr").addEventListener("click", runOcr);
+
   // Acción principal
   els.btnCorrect.addEventListener("click", correct);
 
@@ -316,6 +319,7 @@ function fileToPayload(file) {
 }
 
 function renderFileList() {
+  $("ocr-row").classList.toggle("hidden", writingFiles.length === 0);
   els.fileList.innerHTML = "";
   writingFiles.forEach((f, i) => {
     const li = document.createElement("li");
@@ -329,6 +333,102 @@ function renderFileList() {
     });
     els.fileList.appendChild(li);
   });
+}
+
+/* ---------- OCR local (Tesseract.js, sin IA) ---------- */
+
+const CDN_OCR = {
+  tesseract: "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js",
+  pdfjs: "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js",
+  pdfjsWorker: "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js",
+};
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("No se pudo cargar " + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function runOcr() {
+  if (writingFiles.length === 0) return;
+  const btn = $("btn-ocr");
+  btn.disabled = true;
+  let worker = null;
+  try {
+    setStatus('<span class="spinner"></span>Preparando OCR… la primera vez descarga el motor (~15 MB).');
+    await loadScript(CDN_OCR.tesseract);
+    worker = await Tesseract.createWorker("eng", 1, {
+      logger: (m) => {
+        if (m.status === "recognizing text") {
+          setStatus(`<span class="spinner"></span>Reconociendo texto… ${Math.round(m.progress * 100)}%`);
+        }
+      },
+    });
+
+    const pieces = [];
+    for (const f of writingFiles) {
+      if (f.mime === "application/pdf") {
+        const pages = await pdfToImages(f);
+        for (const img of pages) pieces.push(await ocrOne(worker, img));
+      } else {
+        pieces.push(await ocrOne(worker, `data:${f.mime};base64,${f.base64}`));
+      }
+    }
+
+    const text = pieces.join("\n\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+    if (!text) {
+      setStatus("No se detectó texto. Probá con una foto más nítida y derecha, o corregí directo con IA.", true);
+      return;
+    }
+
+    els.writingText.value = text;
+    switchTab("text");
+    const soloTexto = confirm(
+      "Texto extraído ✓ Quedó en la pestaña «Pegar texto» para que lo revises y edites.\n\n" +
+        "¿Querés usar SOLO el texto extraído? (Aceptar = las fotos/PDF ya no se envían a la IA)"
+    );
+    if (soloTexto) {
+      writingFiles = [];
+      renderFileList();
+    }
+    setStatus("Texto extraído con OCR ✓ Revisalo antes de corregir: la manuscrita puede tener errores de reconocimiento.");
+  } catch (err) {
+    console.error(err);
+    setStatus("No se pudo completar el OCR: " + (err.message || "error desconocido"), true);
+  } finally {
+    if (worker) worker.terminate().catch(() => {});
+    btn.disabled = false;
+  }
+}
+
+async function ocrOne(worker, imageLike) {
+  const { data } = await worker.recognize(imageLike);
+  return (data.text || "").trim();
+}
+
+/* Convierte cada página de un PDF en imagen (canvas) para poder pasarla por OCR */
+async function pdfToImages(f) {
+  await loadScript(CDN_OCR.pdfjs);
+  pdfjsLib.GlobalWorkerOptions.workerSrc = CDN_OCR.pdfjsWorker;
+  const bytes = Uint8Array.from(atob(f.base64), (c) => c.charCodeAt(0));
+  const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+  const images = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    setStatus(`<span class="spinner"></span>Convirtiendo página ${p} de ${pdf.numPages} del PDF…`);
+    const page = await pdf.getPage(p);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    images.push(canvas.toDataURL("image/png"));
+  }
+  return images;
 }
 
 /* ---------- Corrección ---------- */

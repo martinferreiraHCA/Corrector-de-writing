@@ -222,6 +222,15 @@ textarea { resize: vertical; }
   margin: 0 0 1rem;
 }
 
+.ocr-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+}
+.ocr-row .muted { flex: 1; min-width: 220px; font-size: 0.8rem; }
+
 .details summary {
   cursor: pointer;
   font-weight: 600;
