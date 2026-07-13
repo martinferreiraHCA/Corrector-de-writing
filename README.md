@@ -4,7 +4,10 @@ Plataforma web para corregir *writings* de exámenes de Cambridge English (A2 Ke
 
 **¿Qué hace?** Subís un PDF o fotos del writing (o pegás el texto), elegís el nivel, y la IA actúa como examinador oficial de Cambridge: puntúa con los criterios oficiales (Content, Communicative Achievement, Organisation, Language), arma una tabla de errores con explicaciones, reescribe una versión mejorada y genera un plan de acción para el estudiante.
 
-**OCR local sin IA:** al subir fotos o PDF aparece el botón "Extraer texto sin IA (OCR local)". Usa [Tesseract.js](https://tesseract.projectnaptha.com/) corriendo 100% en el navegador — gratis, sin límites y sin enviar nada a ningún servidor. Funciona muy bien con texto impreso/tipeado y razonablemente con manuscrita prolija de imprenta; el texto extraído queda en la pestaña "Pegar texto" para revisarlo y editarlo antes de corregir. Para letra cursiva o desprolija conviene corregir directo con la IA, que lee manuscrita mucho mejor.
+**Transcripción de writings a mano.** Al subir fotos o PDF aparecen dos botones que dejan el texto editable en la pestaña "Pegar texto" para revisarlo antes de corregir:
+
+- **✍️ Transcribir con IA** *(recomendado para manuscrita)*: usa el modelo configurado como transcriptor puro. Lee letra a mano con mucha precisión pero **no corrige nada**: conserva textualmente los errores del estudiante (verificado: no "arregla" ortografía ni gramática), marca palabras ilegibles con [?] e ignora tachaduras. Consume una llamada mínima a la API (gratis con la capa de Gemini).
+- **🔍 OCR local sin IA**: [Tesseract.js](https://tesseract.projectnaptha.com/) corriendo 100% en el navegador — gratis, sin límites y sin enviar nada a ningún servidor, con preprocesamiento de imagen (binarización Otsu) para mejorar fotos de celular. Muy bueno con texto impreso/tipeado y aceptable con imprenta prolija; la manuscrita cursiva no es lo suyo.
 
 ## 🌐 Publicar en GitHub Pages (una sola vez)
 

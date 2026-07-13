@@ -94,8 +94,11 @@
         <input type="file" id="input-files" accept=".pdf,image/png,image/jpeg,image/webp,image/gif" multiple hidden />
         <ul id="file-list" class="file-list"></ul>
         <div id="ocr-row" class="ocr-row hidden">
-          <button id="btn-ocr" class="btn-secondary btn-small">🔍 Extraer texto sin IA (OCR local)</button>
-          <span class="muted">Gratis y sin límites. Muy bueno con texto impreso; con manuscrita conviene revisar el resultado (o corregir directo con IA, que lee mejor la letra a mano).</span>
+          <div class="ocr-buttons">
+            <button id="btn-transcribe" class="btn-secondary btn-small">✍️ Transcribir con IA <span class="tag-reco">manuscrita</span></button>
+            <button id="btn-ocr" class="btn-secondary btn-small">🔍 OCR local sin IA <span class="tag-plain">impreso</span></button>
+          </div>
+          <span class="muted">Ambos dejan el texto editable en «Pegar texto» para revisarlo antes de corregir. <strong>Transcribir con IA</strong> lee letra a mano con mucha precisión y no corrige nada (conserva los errores del estudiante). El <strong>OCR local</strong> es gratis e ilimitado, ideal para texto impreso o imprenta muy prolija.</span>
         </div>
       </div>
 

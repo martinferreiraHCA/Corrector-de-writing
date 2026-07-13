@@ -54,6 +54,19 @@ Una lista de 3 a 5 recomendaciones accionables y concretas para este estudiante 
 
 Sé riguroso pero constructivo: el objetivo es que el estudiante entienda exactamente qué debe mejorar.`;
 
+/* Prompt para el modo transcripción: leer manuscrita SIN corregir nada */
+const TRANSCRIBE_PROMPT = `Sos un transcriptor experto de textos manuscritos de estudiantes.
+
+Transcribí EXACTAMENTE el texto de las imágenes o PDF adjuntos, tal como está escrito y en su idioma original (normalmente inglés).
+
+Reglas estrictas:
+- NO corrijas nada: ni ortografía, ni gramática, ni puntuación, ni mayúsculas. Los errores del estudiante deben conservarse tal cual, porque el texto va a ser evaluado después.
+- Mantené los saltos de párrafo y la estructura del original.
+- Si una palabra es completamente ilegible, escribí [?] en su lugar. Si dudás entre dos lecturas, elegí la más probable.
+- Ignorá el texto tachado por el estudiante.
+- Si hay texto impreso de la consigna en la hoja, no lo incluyas: transcribí solo lo que escribió el estudiante.
+- Devolvé SOLO el texto transcripto, sin comentarios, títulos ni explicaciones.`;
+
 /* ---------- Configuración de proveedores ---------- */
 
 const PROVIDERS = {
@@ -185,7 +198,8 @@ document.addEventListener("DOMContentLoaded", () => {
     els.rubricFileName.textContent = `✓ ${f.name}`;
   });
 
-  // OCR local (sin IA)
+  // Transcripción con IA y OCR local (sin IA)
+  $("btn-transcribe").addEventListener("click", transcribe);
   $("btn-ocr").addEventListener("click", runOcr);
 
   // Acción principal
@@ -335,6 +349,53 @@ function renderFileList() {
   });
 }
 
+/* ---------- Transcripción con IA (lee manuscrita, no corrige) ---------- */
+
+async function transcribe() {
+  const provider = settings.provider;
+  const key = settings.keys[provider];
+  if (!key) {
+    openSettings();
+    return;
+  }
+  if (writingFiles.length === 0) return;
+
+  const btn = $("btn-transcribe");
+  btn.disabled = true;
+  setStatus('<span class="spinner"></span>Transcribiendo la letra del estudiante…');
+  try {
+    const userText =
+      "Transcribí el texto manuscrito de los archivos adjuntos siguiendo estrictamente tus reglas (textual, sin corregir nada).";
+    const files = [...writingFiles];
+    const text =
+      provider === "gemini"
+        ? await callGemini(key, settings.models.gemini, TRANSCRIBE_PROMPT, userText, files)
+        : await callAnthropic(key, settings.models.anthropic, TRANSCRIBE_PROMPT, userText, files);
+
+    finishTranscription(text.trim(), "Transcripción con IA lista ✓");
+  } catch (err) {
+    console.error(err);
+    setStatus(friendlyError(err), true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* Deja el texto extraído/transcripto en la pestaña de texto para revisión */
+function finishTranscription(text, okMessage) {
+  els.writingText.value = text;
+  switchTab("text");
+  const soloTexto = confirm(
+    "Texto listo ✓ Quedó en la pestaña «Pegar texto» para que lo revises y edites.\n\n" +
+      "¿Querés usar SOLO el texto? (Aceptar = las fotos/PDF ya no se envían a la IA al corregir)"
+  );
+  if (soloTexto) {
+    writingFiles = [];
+    renderFileList();
+  }
+  setStatus(okMessage + " Revisalo y después apretá «Corregir writing».");
+}
+
 /* ---------- OCR local (Tesseract.js, sin IA) ---------- */
 
 const CDN_OCR = {
@@ -374,29 +435,19 @@ async function runOcr() {
     for (const f of writingFiles) {
       if (f.mime === "application/pdf") {
         const pages = await pdfToImages(f);
-        for (const img of pages) pieces.push(await ocrOne(worker, img));
+        for (const img of pages) pieces.push(await ocrOne(worker, await preprocessForOcr(img)));
       } else {
-        pieces.push(await ocrOne(worker, `data:${f.mime};base64,${f.base64}`));
+        pieces.push(await ocrOne(worker, await preprocessForOcr(`data:${f.mime};base64,${f.base64}`)));
       }
     }
 
     const text = pieces.join("\n\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
     if (!text) {
-      setStatus("No se detectó texto. Probá con una foto más nítida y derecha, o corregí directo con IA.", true);
+      setStatus("No se detectó texto. Probá con una foto más nítida y derecha, o usá «Transcribir con IA», que lee mucho mejor la letra a mano.", true);
       return;
     }
 
-    els.writingText.value = text;
-    switchTab("text");
-    const soloTexto = confirm(
-      "Texto extraído ✓ Quedó en la pestaña «Pegar texto» para que lo revises y edites.\n\n" +
-        "¿Querés usar SOLO el texto extraído? (Aceptar = las fotos/PDF ya no se envían a la IA)"
-    );
-    if (soloTexto) {
-      writingFiles = [];
-      renderFileList();
-    }
-    setStatus("Texto extraído con OCR ✓ Revisalo antes de corregir: la manuscrita puede tener errores de reconocimiento.");
+    finishTranscription(text, "Texto extraído con OCR ✓ La manuscrita puede tener errores de reconocimiento:");
   } catch (err) {
     console.error(err);
     setStatus("No se pudo completar el OCR: " + (err.message || "error desconocido"), true);
@@ -409,6 +460,70 @@ async function runOcr() {
 async function ocrOne(worker, imageLike) {
   const { data } = await worker.recognize(imageLike);
   return (data.text || "").trim();
+}
+
+/* Preprocesa la imagen para mejorar el OCR con fotos de celular:
+   escala de grises + binarización (umbral de Otsu) + ampliación si es chica.
+   Si algo falla, devuelve la imagen original. */
+function preprocessForOcr(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = img.width < 1400 ? Math.min(2, 1400 / img.width) : 1;
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const px = imgData.data;
+
+        // Escala de grises + histograma
+        const hist = new Array(256).fill(0);
+        const grays = new Uint8Array(px.length / 4);
+        for (let i = 0, g = 0; i < px.length; i += 4, g++) {
+          const gray = Math.round(0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]);
+          grays[g] = gray;
+          hist[gray]++;
+        }
+
+        // Umbral de Otsu
+        const total = grays.length;
+        let sum = 0;
+        for (let t = 0; t < 256; t++) sum += t * hist[t];
+        let sumB = 0, wB = 0, maxVar = 0, threshold = 127;
+        for (let t = 0; t < 256; t++) {
+          wB += hist[t];
+          if (wB === 0) continue;
+          const wF = total - wB;
+          if (wF === 0) break;
+          sumB += t * hist[t];
+          const mB = sumB / wB;
+          const mF = (sum - sumB) / wF;
+          const between = wB * wF * (mB - mF) * (mB - mF);
+          if (between > maxVar) {
+            maxVar = between;
+            threshold = t;
+          }
+        }
+
+        // Binarizar
+        for (let i = 0, g = 0; i < px.length; i += 4, g++) {
+          const v = grays[g] > threshold ? 255 : 0;
+          px[i] = px[i + 1] = px[i + 2] = v;
+        }
+        ctx.putImageData(imgData, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 }
 
 /* Convierte cada página de un PDF en imagen (canvas) para poder pasarla por OCR */
@@ -457,8 +572,8 @@ async function correct() {
 
     const markdown =
       provider === "gemini"
-        ? await callGemini(key, settings.models.gemini, userText, files)
-        : await callAnthropic(key, settings.models.anthropic, userText, files);
+        ? await callGemini(key, settings.models.gemini, SYSTEM_PROMPT, userText, files)
+        : await callAnthropic(key, settings.models.anthropic, SYSTEM_PROMPT, userText, files);
 
     currentMarkdown = markdown;
     renderResult(markdown);
@@ -513,7 +628,7 @@ function buildUserText(pastedText) {
 
 /* ---------- Llamadas a las APIs ---------- */
 
-async function callGemini(key, model, userText, files) {
+async function callGemini(key, model, system, userText, files) {
   const parts = files.map((f) => ({
     inline_data: { mime_type: f.mime, data: f.base64 },
   }));
@@ -525,7 +640,7 @@ async function callGemini(key, model, userText, files) {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        system_instruction: { parts: [{ text: system }] },
         contents: [{ role: "user", parts }],
         generationConfig: { temperature: 0.4, maxOutputTokens: 32768 },
       }),
@@ -542,7 +657,7 @@ async function callGemini(key, model, userText, files) {
   return out;
 }
 
-async function callAnthropic(key, model, userText, files) {
+async function callAnthropic(key, model, system, userText, files) {
   const content = files.map((f) =>
     f.mime === "application/pdf"
       ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: f.base64 } }
@@ -561,7 +676,7 @@ async function callAnthropic(key, model, userText, files) {
     body: JSON.stringify({
       model,
       max_tokens: 8192,
-      system: SYSTEM_PROMPT,
+      system,
       messages: [{ role: "user", content }],
     }),
   });

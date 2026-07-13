@@ -224,12 +224,22 @@ textarea { resize: vertical; }
 
 .ocr-row {
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-top: 0.6rem;
 }
-.ocr-row .muted { flex: 1; min-width: 220px; font-size: 0.8rem; }
+.ocr-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.ocr-row .muted { font-size: 0.8rem; }
+.tag-reco, .tag-plain {
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  margin-left: 0.3rem;
+  vertical-align: 1px;
+}
+.tag-reco { background: var(--red); color: #fff; }
+.tag-plain { background: var(--navy-soft); color: var(--navy); }
 
 .details summary {
   cursor: pointer;
