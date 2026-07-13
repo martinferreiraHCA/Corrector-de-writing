@@ -94,12 +94,14 @@
       </div>
     </div>
 
+    <p class="criteria-note">✅ Los <strong>criterios oficiales de Cambridge</strong> (band descriptors de las guías para docentes) ya están integrados y se aplican automáticamente según el nivel elegido.</p>
+
     <details class="details" id="details-rubric">
-      <summary>Criterios oficiales de Cambridge <span class="muted">(opcional — se guardan para próximas correcciones)</span></summary>
+      <summary>Criterios o instrucciones adicionales <span class="muted">(opcional — se guardan para próximas correcciones)</span></summary>
       <div class="field" style="margin-top:.75rem">
-        <textarea id="txt-rubric" rows="4" placeholder="Pegá acá la escala de evaluación oficial (Assessment Scale) si la tenés..."></textarea>
+        <textarea id="txt-rubric" rows="4" placeholder="Ej: 'Sé especialmente exigente con la puntuación', 'Este grupo está empezando el nivel'..."></textarea>
         <div class="rubric-file-row">
-          <label for="input-rubric" class="btn-secondary btn-small">📎 Adjuntar PDF de criterios</label>
+          <label for="input-rubric" class="btn-secondary btn-small">📎 Adjuntar PDF con criterios extra</label>
           <input type="file" id="input-rubric" accept=".pdf" hidden />
           <span id="rubric-file-name" class="muted"></span>
         </div>
@@ -178,6 +180,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script src="criteria.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -34,21 +34,22 @@ Una corrección típica (writing de 1-2 carillas + respuesta completa) usa unos 
 
 | Proveedor / modelo | Precio (entrada / salida por millón de tokens) | Costo por corrección |
 |---|---|---|
-| **Gemini 2.5 Flash** | Capa gratuita; luego ~US$ 0,30 / 2,50 | **Gratis** o ~US$ 0,01 |
-| Gemini 2.5 Flash-Lite | ~US$ 0,10 / 0,40 | < US$ 0,005 |
+| **Gemini Flash** (`gemini-flash-latest`) | Capa gratuita; luego ~US$ 0,30 / 2,50 | **Gratis** o ~US$ 0,01 |
+| Gemini Flash-Lite (`gemini-flash-lite-latest`) | ~US$ 0,10 / 0,40 | < US$ 0,005 |
 | **Claude Haiku 4.5** | US$ 1 / 5 | ~US$ 0,02 |
 | Claude Sonnet 5 | US$ 3 / 15 | ~US$ 0,07 |
 
+El sitio usa los alias `-latest` de Gemini, que siempre apuntan al modelo Flash/Pro vigente: así no deja de funcionar cuando Google retira una versión vieja (nos pasó con `gemini-2.5-flash`, que ya no acepta cuentas nuevas).
+
 Otras opciones baratas que se podrían agregar más adelante: OpenAI `gpt-4o-mini`, DeepSeek, Groq (Llama, gratis). Con Gemini o Claude ya queda cubierto el caso de uso con PDFs y fotos.
 
-## 📋 Criterios oficiales de Cambridge
+## 📋 Criterios oficiales de Cambridge — integrados ✅
 
-En el formulario hay una sección **"Criterios oficiales de Cambridge"** donde podés:
+Las escalas oficiales de evaluación (band descriptors) de las *Teacher Guides for Writing* de Cambridge están integradas en el sitio (`criteria.js`) para los 5 niveles: A2 Key, B1 Preliminary, B2 First, C1 Advanced y C2 Proficiency.
 
-- Pegar el texto de la *Assessment Scale* (queda guardado en el navegador para las próximas correcciones), y/o
-- Adjuntar el PDF oficial de criterios en cada corrección.
+En cada corrección se envía automáticamente la escala del nivel elegido, y la IA está instruida para usarla como referencia principal y obligatoria al puntuar. Si elegís "Detectar automáticamente", se envían las 5 escalas y la IA aplica la que corresponda.
 
-Si me pasás los PDFs de los criterios, también se pueden **integrar directamente al sitio** para que se usen siempre sin tener que subirlos.
+Además hay una sección opcional de **criterios o instrucciones adicionales** (texto o PDF) por si querés ajustar la exigencia para un grupo en particular.
 
 ## 🛠️ Estructura del proyecto
 
@@ -56,6 +57,7 @@ Si me pasás los PDFs de los criterios, también se pueden **integrar directamen
 index.html    → estructura de la página
 styles.css    → estilos (paleta HCA: azul #242B59, rojo #E21C21)
 app.js        → lógica: prompt del examinador, llamadas a Gemini/Claude, historial
+criteria.js   → escalas oficiales de Cambridge (band descriptors) de los 5 niveles
 assets/       → logo del colegio
 ```
 

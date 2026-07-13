@@ -22,7 +22,7 @@ Vas a recibir redacciones (writings) de estudiantes que se preparan para exámen
    - **Organización:** estructura de párrafos, puntuación, formato inadecuado para el tipo de texto.
    - **Ortografía (Spelling):** errores de escritura de palabras.
 
-3. **Evaluación según criterios de Cambridge (macro-nivel):** Evaluá con las rúbricas oficiales (0 a 5 puntos por criterio). Si el usuario adjunta los criterios oficiales, usalos como referencia principal.
+3. **Evaluación según criterios de Cambridge (macro-nivel):** Evaluá con las rúbricas oficiales (0 a 5 puntos por criterio). En el mensaje del usuario se incluye la escala oficial de evaluación de Cambridge (band descriptors) del nivel correspondiente: usala como referencia principal y obligatoria para asignar cada banda, citando los descriptores cuando justifiques la nota.
    - Para **B1, B2, C1 y C2**: Content, Communicative Achievement, Organisation y Language (total sobre 20).
    - Para **A2 Key**: los criterios oficiales son solo tres — Content, Organisation y Language (total sobre 15).
 
@@ -62,9 +62,9 @@ const PROVIDERS = {
     keyHelp:
       'Conseguí una clave gratis en <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> (botón "Create API key").',
     models: [
-      { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash — recomendado (capa gratuita)" },
-      { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite — el más barato" },
-      { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro — máxima calidad" },
+      { id: "gemini-flash-latest", label: "Gemini Flash — recomendado (capa gratuita)" },
+      { id: "gemini-flash-lite-latest", label: "Gemini Flash-Lite — el más barato" },
+      { id: "gemini-pro-latest", label: "Gemini Pro — máxima calidad" },
     ],
     hint: "Flash tiene capa gratuita generosa y es más que suficiente para corregir writings.",
   },
@@ -82,13 +82,20 @@ const PROVIDERS = {
 
 const DEFAULT_SETTINGS = {
   provider: "gemini",
-  models: { gemini: "gemini-2.5-flash", anthropic: "claude-haiku-4-5" },
+  models: { gemini: "gemini-flash-latest", anthropic: "claude-haiku-4-5" },
   keys: { gemini: "", anthropic: "" },
 };
 
 /* ---------- Estado ---------- */
 
 let settings = loadJSON("cw_settings", DEFAULT_SETTINGS);
+// Migración: si el modelo guardado ya no existe en la lista (ej. Google lo retiró),
+// se vuelve al modelo por defecto del proveedor.
+for (const p of Object.keys(PROVIDERS)) {
+  if (!PROVIDERS[p].models.some((m) => m.id === settings.models?.[p])) {
+    settings.models[p] = DEFAULT_SETTINGS.models[p];
+  }
+}
 let history = loadJSON("cw_history", []);
 let writingFiles = []; // {name, mime, base64}
 let rubricFile = null; // {name, mime, base64}
@@ -318,9 +325,24 @@ function buildUserText(pastedText) {
   const task = els.task.value.trim();
   if (task) parts.push(`Consigna de la tarea:\n${task}`);
 
+  // Escala oficial de Cambridge integrada (criteria.js), según el nivel elegido
+  if (typeof CAMBRIDGE_CRITERIA !== "undefined") {
+    const levelKey = CRITERIA_LEVEL_MAP[level];
+    if (levelKey) {
+      parts.push(
+        `ESCALA OFICIAL DE EVALUACIÓN DE CAMBRIDGE PARA ESTE NIVEL (referencia principal y obligatoria):\n\n${CAMBRIDGE_CRITERIA[levelKey]}`
+      );
+    } else {
+      const all = Object.values(CAMBRIDGE_CRITERIA).join("\n\n---\n\n");
+      parts.push(
+        `ESCALAS OFICIALES DE EVALUACIÓN DE CAMBRIDGE (detectá el nivel y usá la escala correspondiente como referencia principal):\n\n${all}`
+      );
+    }
+  }
+
   const rubric = els.rubricText.value.trim();
-  if (rubric) parts.push(`Criterios oficiales de evaluación (usar como referencia principal):\n${rubric}`);
-  if (rubricFile) parts.push(`Además adjunto un PDF con los criterios oficiales ("${rubricFile.name}").`);
+  if (rubric) parts.push(`Criterios o instrucciones adicionales del docente:\n${rubric}`);
+  if (rubricFile) parts.push(`Además adjunto un PDF con criterios adicionales ("${rubricFile.name}").`);
 
   if (writingFiles.length > 0) {
     parts.push("El writing del estudiante está en los archivos adjuntos.");
