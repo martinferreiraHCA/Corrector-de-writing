@@ -69,6 +69,46 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.topbar-actions { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+
+.auth-area { display: flex; align-items: center; }
+.btn-login {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fff;
+  color: var(--ink);
+  border: none;
+  border-radius: 10px;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+}
+.btn-login:hover { background: #f0f2f8; }
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem 0.25rem 0.3rem;
+  font-size: 0.85rem;
+}
+.user-chip img { width: 26px; height: 26px; border-radius: 50%; background: #fff; }
+.btn-link-light {
+  font: inherit;
+  font-size: 0.8rem;
+  background: none;
+  border: none;
+  color: #ffd7d8;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
 .btn-icon {
   background: rgba(255,255,255,0.1);
   border: 1px solid rgba(255,255,255,0.25);
@@ -359,6 +399,43 @@ textarea { resize: vertical; }
   background: var(--red-soft);
   border-radius: 0 8px 8px 0;
 }
+
+/* ===== Corpus ===== */
+.corpus-level {
+  width: auto;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.6rem;
+}
+.corpus-summary { margin: 0.25rem 0 0.75rem; }
+.corpus-type {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  margin-bottom: 0.5rem;
+}
+.corpus-type summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--navy);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.corpus-count {
+  background: var(--red);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  min-width: 2em;
+  text-align: center;
+}
+.corpus-type table { border-collapse: collapse; width: 100%; font-size: 0.87rem; margin-top: 0.6rem; }
+.corpus-type th { background: var(--navy); color: #fff; text-align: left; padding: 0.4rem 0.6rem; }
+.corpus-type td { border: 1px solid var(--line); padding: 0.4rem 0.6rem; }
+.corpus-recent { margin: 0.6rem 0 0; padding-left: 1.2rem; font-size: 0.88rem; }
+.corpus-recent li { margin-bottom: 0.25rem; }
 
 /* ===== Historial ===== */
 .history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }

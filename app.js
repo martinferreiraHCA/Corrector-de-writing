@@ -224,6 +224,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Enter") activateSharedKey();
   });
 
+  // Nube (login con Google + corpus). cloud.js avisa cuando terminó de cargar.
+  if (window.CloudReady) initCloudUI();
+  else document.addEventListener("cloud-ready", initCloudUI, { once: true });
+
   // Configuración
   $("btn-settings").addEventListener("click", openSettings);
   $("banner-open-settings").addEventListener("click", openSettings);
@@ -406,9 +410,186 @@ function renderFileList() {
   });
 }
 
+/* ---------- Nube: login con Google, guardado y corpus ---------- */
+
+function initCloudUI() {
+  if (!window.Cloud) return; // sin Firebase configurado: el sitio sigue como siempre
+
+  $("auth-area").classList.remove("hidden");
+  $("corpus-card").classList.remove("hidden");
+
+  $("btn-login").addEventListener("click", async () => {
+    try {
+      await Cloud.signIn();
+    } catch (err) {
+      console.error(err);
+      setStatus("No se pudo iniciar sesión con Google. Probá de nuevo.", true);
+    }
+  });
+  $("btn-logout").addEventListener("click", () => Cloud.signOut());
+  $("btn-corpus").addEventListener("click", loadCorpus);
+  $("corpus-level").addEventListener("change", loadCorpus);
+
+  Cloud.onUser((u) => {
+    $("btn-login").classList.toggle("hidden", Boolean(u));
+    $("user-chip").classList.toggle("hidden", !u);
+    if (u) {
+      $("user-name").textContent = (u.displayName || u.email || "").split(" ")[0];
+      $("user-pic").src = u.photoURL || "";
+      loadCorpus();
+    } else {
+      $("corpus-body").innerHTML = "";
+    }
+  });
+}
+
+/* Con la nube activa, se pide sesión iniciada para usar el sistema */
+function requireLogin() {
+  if (window.Cloud && !Cloud.user) {
+    setStatus("Entrá con Google (botón arriba a la derecha) para usar el corrector y sumar al corpus común.", true);
+    return false;
+  }
+  return true;
+}
+
+/* Extrae las filas de la tabla "🔍 Análisis Detallado de Errores" del markdown */
+function parseErrorsFromMarkdown(md) {
+  const sec = md.split(/###\s*🔍[^\n]*\n/)[1];
+  if (!sec) return [];
+  const stop = sec.search(/\n###\s/);
+  const table = stop === -1 ? sec : sec.slice(0, stop);
+  const rows = [];
+  for (const line of table.split("\n")) {
+    const t = line.trim();
+    if (!t.startsWith("|")) continue;
+    const inner = t.replace(/^\|/, "").replace(/\|$/, "");
+    const cells = inner.split("|").map((c) => c.replace(/\*\*/g, "").trim());
+    if (cells.length < 4) continue;
+    if (/^[-: ]+$/.test(cells[0]) || /texto original/i.test(cells[0])) continue;
+    rows.push({
+      original: cells[0].replace(/^["“]|["”]$/g, ""),
+      tipo: cells[1],
+      correccion: cells[2].replace(/^["“]|["”]$/g, ""),
+      explicacion: cells[3],
+    });
+  }
+  return rows;
+}
+
+/* Guarda la corrección en la base común (si hay sesión) */
+async function saveToCloud(markdown) {
+  if (!window.Cloud || !Cloud.user) return;
+  try {
+    const title = (markdown.match(/Nivel y Tipo de Texto:?\*{0,2}\s*\*{0,2}\s*\[?([^\n\]]+)/i)?.[1] || "").trim();
+    const levelKey = (title.match(/\b(A2|B1|B2|C1|C2)\b/) || [])[1] || (CRITERIA_LEVEL_MAP[els.level.value] || "");
+    const score = markdown.match(/Puntuaci[oó]n Estimada:?\*{0,2}\s*\*{0,2}\s*\[?(\d{1,2}\s*\/\s*\d{2})/i)?.[1]?.replace(/\s/g, "") || null;
+    await Cloud.saveCorrection({
+      level: levelKey,
+      title: title.replace(/[*\]]+$/, "").trim() || "Writing",
+      score,
+      task: els.task.value.trim().slice(0, 500),
+      markdown,
+      errors: parseErrorsFromMarkdown(markdown),
+    });
+    setStatus("Listo ✓ Corrección guardada en la base común del colegio.");
+  } catch (err) {
+    console.error(err);
+    setStatus("Corrección lista ✓ pero no se pudo guardar en la base común (" + (err.message || "").slice(0, 80) + ").", true);
+  }
+}
+
+/* ---- Corpus: agregación y render ---- */
+
+async function loadCorpus() {
+  if (!window.Cloud || !Cloud.user) return;
+  const body = $("corpus-body");
+  body.innerHTML = '<p class="muted"><span class="spinner"></span>Cargando corpus…</p>';
+  try {
+    const rows = await Cloud.fetchCorpus(500);
+    renderCorpus(rows, $("corpus-level").value);
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = `<p class="muted">No se pudo cargar el corpus (${(err.message || "").slice(0, 120)}).</p>`;
+  }
+}
+
+function renderCorpus(rows, levelFilter) {
+  const body = $("corpus-body");
+  const filtered = levelFilter ? rows.filter((r) => r.level === levelFilter) : rows;
+
+  const allErrors = [];
+  for (const r of filtered) for (const e of r.errors || []) allErrors.push(e);
+
+  if (filtered.length === 0) {
+    body.innerHTML = '<p class="muted">Todavía no hay correcciones guardadas' + (levelFilter ? " para este nivel" : "") + ". ¡Corregí el primer writing!</p>";
+    return;
+  }
+
+  // Agrupar por tipo de error
+  const byType = new Map();
+  for (const e of allErrors) {
+    const tipo = normalizeTipo(e.tipo);
+    if (!byType.has(tipo)) byType.set(tipo, { count: 0, examples: new Map() });
+    const g = byType.get(tipo);
+    g.count++;
+    const k = (e.original || "").toLowerCase().trim();
+    if (!k) continue;
+    const prev = g.examples.get(k);
+    if (prev) prev.n++;
+    else g.examples.set(k, { ...e, n: 1 });
+  }
+
+  const types = [...byType.entries()].sort((a, b) => b[1].count - a[1].count);
+  const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+  let html = `<p class="corpus-summary"><strong>${filtered.length}</strong> correcciones · <strong>${allErrors.length}</strong> errores registrados${levelFilter ? ` · nivel <strong>${levelFilter}</strong>` : ""}</p>`;
+
+  for (const [tipo, g] of types) {
+    const examples = [...g.examples.values()]
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 5);
+    html += `<details class="corpus-type">
+      <summary><span class="corpus-count">${g.count}</span> ${esc(tipo)}</summary>
+      <div class="table-wrap"><table>
+        <tr><th>Error del estudiante</th><th>Corrección</th><th>Veces</th></tr>
+        ${examples
+          .map(
+            (e) =>
+              `<tr><td>"${esc(e.original)}"</td><td>"${esc(e.correccion)}"</td><td>${e.n > 1 ? "×" + e.n : "1"}</td></tr>`
+          )
+          .join("")}
+      </table></div>
+    </details>`;
+  }
+
+  html += `<details class="corpus-type"><summary>Últimas correcciones guardadas</summary>
+    <ul class="corpus-recent">${filtered
+      .slice(0, 15)
+      .map(
+        (r) =>
+          `<li><strong>${esc(r.title)}</strong>${r.score ? ` · ${esc(r.score)}` : ""} · ${esc(r.userName || "")} · ${
+            r.createdAt ? new Date(r.createdAt).toLocaleDateString("es-UY") : ""
+          }</li>`
+      )
+      .join("")}</ul></details>`;
+
+  body.innerHTML = html;
+}
+
+function normalizeTipo(t) {
+  const s = (t || "").toLowerCase();
+  if (s.includes("gram")) return "Gramática";
+  if (s.includes("voca") || s.includes("lenguaje") || s.includes("collocation") || s.includes("lexis")) return "Lenguaje / Vocabulario";
+  if (s.includes("cohe")) return "Cohesión y coherencia";
+  if (s.includes("organiza") || s.includes("puntuaci")) return "Organización";
+  if (s.includes("ortograf") || s.includes("spelling")) return "Ortografía";
+  return (t || "Otro").trim() || "Otro";
+}
+
 /* ---------- Transcripción con IA (lee manuscrita, no corrige) ---------- */
 
 async function transcribe() {
+  if (!requireLogin()) return;
   const provider = settings.provider;
   const key = settings.keys[provider];
   if (!key) {
@@ -610,6 +791,7 @@ async function pdfToImages(f) {
 /* ---------- Corrección ---------- */
 
 async function correct() {
+  if (!requireLogin()) return;
   const provider = settings.provider;
   const key = settings.keys[provider];
   if (!key) {
@@ -645,6 +827,7 @@ async function correct() {
     renderResult(markdown);
     addToHistory(markdown);
     setStatus("Listo ✓");
+    await saveToCloud(markdown);
   } catch (err) {
     console.error(err);
     setStatus(friendlyError(err), true);

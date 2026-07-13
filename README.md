@@ -65,6 +65,41 @@ En cada corrección se envía automáticamente la escala del nivel elegido, y la
 
 Además hay una sección opcional de **criterios o instrucciones adicionales** (texto o PDF) por si querés ajustar la exigencia para un grupo en particular.
 
+## ☁️ Login con Google + corpus común de errores
+
+El sitio incluye (desactivado hasta configurar Firebase):
+
+- **Entrar con Google**: con la nube activa, se pide iniciar sesión para usar el corrector.
+- **Base de datos común**: cada corrección se guarda automáticamente en Firestore con sus errores estructurados (texto original, tipo, corrección, explicación).
+- **📚 Corpus de errores frecuentes**: agrega los errores de todas las correcciones del colegio — un pequeño *Cambridge Learner Corpus* propio — agrupados por tipo, con los errores repetidos entre estudiantes destacados (×2, ×3…), filtrable por nivel.
+
+### Activarlo (una sola vez, ~5 minutos)
+
+1. Entrá a [console.firebase.google.com](https://console.firebase.google.com) con la cuenta de Google del colegio → **Agregar proyecto** (ej. `corrector-hca`, sin Analytics).
+2. **Authentication → Comenzar → Sign-in method →** habilitá **Google**.
+3. **Authentication → Settings → Authorized domains →** agregá `martinferrerahca.github.io`.
+4. **Firestore Database → Crear base de datos** (modo producción; ubicación `southamerica-east1`). En la pestaña **Reglas**, pegá esto y publicá:
+
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /corrections/{doc} {
+         allow read: if request.auth != null;
+         allow create: if request.auth != null
+                       && request.resource.data.uid == request.auth.uid;
+         allow update, delete: if request.auth != null
+                               && resource.data.uid == request.auth.uid;
+       }
+     }
+   }
+   ```
+
+   (Cualquier persona con cuenta de Google que entre al sitio puede leer y aportar. Para restringirlo a cuentas del colegio, agregá a cada `if`: `&& request.auth.token.email.matches('.*@hca[.]edu[.]uy')`.)
+5. **⚙️ Configuración del proyecto → Tus apps → agregar app Web (`</>`)** → copiá el objeto `firebaseConfig` y pegalo en `firebase-config.js` reemplazando el `null` (o pasáselo a Claude y lo integra). Ese objeto no es secreto: la seguridad la dan las reglas y los dominios autorizados.
+
+**Privacidad:** en el corpus se guarda el texto de los writings; conviene que los estudiantes no escriban su nombre completo en la hoja, o taparlo en la foto.
+
 ## 🛠️ Estructura del proyecto
 
 ```
@@ -72,6 +107,9 @@ index.html    → estructura de la página
 styles.css    → estilos (paleta HCA: azul #242B59, rojo #E21C21)
 app.js        → lógica: prompt del examinador, llamadas a Gemini/Claude, historial
 criteria.js   → escalas oficiales de Cambridge (band descriptors) de los 5 niveles
+cloud.js      → login con Google y base común de correcciones (Firebase)
+firebase-config.js → configuración de Firebase (null = nube desactivada)
+shared-key.js → clave de API del colegio, cifrada
 assets/       → logo del colegio
 ```
 
