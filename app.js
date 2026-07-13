@@ -301,35 +301,92 @@ async function decryptSharedKey(provider, code) {
 
 /* ---------- Archivos ---------- */
 
-const ACCEPTED = ["application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif"];
+const MIME_BY_EXT = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  heic: "image/heic",
+  heif: "image/heif",
+};
 const MAX_TOTAL_MB = 18;
+const MAX_IMG_SIDE = 2200; // las fotos se reducen a este lado máximo antes de enviarse
+
+/* Algunos celulares entregan las fotos sin tipo MIME: se infiere por la extensión */
+function guessMime(file) {
+  if (file.type && file.type !== "application/octet-stream") return file.type;
+  const ext = (file.name.match(/\.(\w+)$/) || [])[1]?.toLowerCase();
+  return MIME_BY_EXT[ext] || "";
+}
 
 async function addFiles(fileList) {
   for (const f of fileList) {
-    if (!ACCEPTED.includes(f.type)) {
-      alert(`"${f.name}" no es un PDF ni una imagen compatible.`);
+    const mime = guessMime(f);
+    const ok = mime === "application/pdf" || mime.startsWith("image/");
+    if (!ok) {
+      setStatus(`"${f.name}" no es un PDF ni una imagen compatible (tipo: ${f.type || "desconocido"}). Formatos aceptados: PDF, JPG, PNG, WebP, HEIC.`, true);
       continue;
     }
-    writingFiles.push(await fileToPayload(f));
+    try {
+      writingFiles.push(await fileToPayload(f, mime));
+      setStatus("");
+    } catch (err) {
+      console.error(err);
+      setStatus(`No se pudo leer "${f.name}". Probá con otra foto o convertila a JPG.`, true);
+    }
   }
   els.inputFiles.value = "";
   const totalMB = writingFiles.reduce((s, f) => s + f.base64.length * 0.75, 0) / 1e6;
   if (totalMB > MAX_TOTAL_MB) {
-    alert(`Los archivos superan ${MAX_TOTAL_MB} MB en total. Sacá alguno o usá fotos más livianas.`);
+    setStatus(`Los archivos superan ${MAX_TOTAL_MB} MB en total. Sacá alguno o usá fotos más livianas.`, true);
   }
   renderFileList();
 }
 
-function fileToPayload(file) {
+async function fileToPayload(file, mime) {
+  mime = mime || guessMime(file);
+  // Las fotos se achican y comprimen a JPEG: sube más rápido, evita los límites
+  // de tamaño de las APIs y alcanza de sobra para leer la letra.
+  if (mime.startsWith("image/") && !/heic|heif/.test(mime)) {
+    const jpeg = await imageToJpegPayload(file);
+    if (jpeg) return jpeg;
+  }
+  return rawPayload(file, mime);
+}
+
+function rawPayload(file, mime) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = String(reader.result).split(",")[1];
-      resolve({ name: file.name, mime: file.type, base64 });
+      resolve({ name: file.name, mime, base64 });
     };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+/* Reescala la foto (respetando la rotación EXIF) y la comprime a JPEG.
+   Devuelve null si el navegador no puede decodificarla (se usa el original). */
+async function imageToJpegPayload(file) {
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, MAX_IMG_SIDE / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    bmp.close?.();
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    const base64 = dataUrl.split(",")[1];
+    if (!base64) return null;
+    const name = file.name.replace(/\.\w+$/, "") + ".jpg";
+    return { name, mime: "image/jpeg", base64 };
+  } catch {
+    return null;
+  }
 }
 
 function renderFileList() {
@@ -359,10 +416,14 @@ async function transcribe() {
     return;
   }
   if (writingFiles.length === 0) return;
+  if (provider === "anthropic" && writingFiles.some((f) => /heic|heif/.test(f.mime))) {
+    setStatus("Las fotos HEIC (iPhone) solo son compatibles con Google Gemini. Convertilas a JPG o cambiá el proveedor en ⚙️.", true);
+    return;
+  }
 
   const btn = $("btn-transcribe");
   btn.disabled = true;
-  setStatus('<span class="spinner"></span>Transcribiendo la letra del estudiante…');
+  setStatus('<span class="spinner"></span>Transcribiendo la letra del estudiante… puede tardar un minuto.');
   try {
     const userText =
       "Transcribí el texto manuscrito de los archivos adjuntos siguiendo estrictamente tus reglas (textual, sin corregir nada).";
@@ -552,6 +613,7 @@ async function correct() {
   const provider = settings.provider;
   const key = settings.keys[provider];
   if (!key) {
+    setStatus("Falta activar la IA: ingresá el código de acceso del colegio en el recuadro de arriba, o cargá tu propia clave en Configuración (⚙️).", true);
     openSettings();
     return;
   }
@@ -561,9 +623,13 @@ async function correct() {
     setStatus("Subí un archivo o pegá el texto del writing.", true);
     return;
   }
+  if (provider === "anthropic" && writingFiles.some((f) => /heic|heif/.test(f.mime))) {
+    setStatus("Las fotos HEIC (iPhone) solo son compatibles con Google Gemini. Convertilas a JPG o cambiá el proveedor en ⚙️.", true);
+    return;
+  }
 
   els.btnCorrect.disabled = true;
-  setStatus('<span class="spinner"></span>Corrigiendo… puede tardar hasta un minuto.');
+  setStatus('<span class="spinner"></span>Corrigiendo… con fotos puede tardar 1 a 2 minutos, no cierres la pestaña.');
 
   try {
     const userText = buildUserText(text);
@@ -628,13 +694,25 @@ function buildUserText(pastedText) {
 
 /* ---------- Llamadas a las APIs ---------- */
 
+/* fetch con límite de tiempo: si la IA no responde en 4 minutos se corta,
+   así los botones nunca quedan trabados. */
+async function fetchWithTimeout(url, options, ms = 240000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function callGemini(key, model, system, userText, files) {
   const parts = files.map((f) => ({
     inline_data: { mime_type: f.mime, data: f.base64 },
   }));
   parts.push({ text: userText });
 
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: "POST",
@@ -665,7 +743,7 @@ async function callAnthropic(key, model, system, userText, files) {
   );
   content.push({ type: "text", text: userText });
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -706,15 +784,19 @@ async function apiError(res) {
 
 function friendlyError(err) {
   const msg = (err.message || "").toLowerCase();
+  if (err.name === "AbortError")
+    return "La IA tardó demasiado en responder y se cortó la espera. Probá de nuevo (si la foto es muy pesada, sacala con menos resolución).";
   if (err.status === 401 || err.status === 403 || msg.includes("api key not valid") || msg.includes("invalid x-api-key"))
     return "La clave de API no es válida. Revisala en Configuración (⚙️).";
   if (err.status === 429)
-    return "Se alcanzó el límite de uso de la API. Esperá un minuto y probá de nuevo.";
+    return "Se alcanzó el límite de uso gratuito de la API. Esperá un minuto y probá de nuevo.";
+  if (err.status === 413 || msg.includes("payload size") || msg.includes("request entity too large"))
+    return "Los archivos son demasiado pesados para la API. Sacá alguno o usá fotos más livianas.";
   if (err.status === 529 || err.status >= 500)
     return "El servicio de IA está sobrecargado. Probá de nuevo en unos segundos.";
   if (msg.includes("failed to fetch"))
     return "No se pudo conectar con la API. Revisá tu conexión a internet.";
-  return "Error: " + (err.message || "desconocido").slice(0, 200);
+  return "Error: " + (err.message || "desconocido").slice(0, 300);
 }
 
 function setStatus(html, isError = false) {
