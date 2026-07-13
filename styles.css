@@ -99,10 +99,24 @@ html, body {
   border-radius: 10px;
   padding: 0.8rem 1rem;
   font-size: 0.95rem;
+}
+.banner-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+}
+.banner-row input {
+  width: auto;
+  flex: 0 1 190px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+}
+.access-error {
+  color: var(--red);
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-top: 0.4rem;
 }
 
 .card {

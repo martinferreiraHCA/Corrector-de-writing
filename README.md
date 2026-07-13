@@ -11,9 +11,18 @@ Plataforma web para corregir *writings* de exámenes de Cambridge English (A2 Ke
 3. Branch: **main**, carpeta: **/ (root)** → **Save**.
 4. En 1-2 minutos el sitio queda en: `https://martinferrerahca.github.io/Corrector-de-writing/` (GitHub te muestra la URL exacta en esa misma pantalla).
 
-## 🔑 Conseguir una API key
+## 🔑 Clave de API
 
 El sitio es 100% estático: la clave de API se guarda **solo en tu navegador** (localStorage) y las llamadas van directo del navegador al proveedor de IA. Nadie más ve tu clave ni los writings.
+
+### Código de acceso del colegio (lo más simple)
+
+La clave de Gemini del colegio está guardada en el repo **cifrada** (`shared-key.js`, AES-256-GCM). Al entrar al sitio por primera vez, alcanza con escribir el **código de acceso** en el banner de arriba: el navegador descifra la clave y la deja activada. No hace falta manejar la clave larga.
+
+- El código no está en el repo; lo comparte el docente responsable.
+- ⚠️ Nunca pongas la clave **en texto plano** en el repo: GitHub escanea los repositorios públicos y Google la revoca automáticamente.
+- Para cambiar la clave o el código: `node tools/encrypt-key.mjs <API_KEY> <CODIGO> > shared-key.js` y pusheá a main.
+- Cualquiera que tenga el código puede usar la clave, así que conviene mantener la cuenta de Google **sin facturación habilitada** (capa gratuita): el peor caso es quedarse sin cuota del día, nunca un gasto.
 
 ### Opción recomendada: Google Gemini (gratis)
 

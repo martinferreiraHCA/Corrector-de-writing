@@ -201,6 +201,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Código de acceso (clave compartida del colegio, cifrada en shared-key.js)
+  $("btn-access-code").addEventListener("click", activateSharedKey);
+  $("input-access-code").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") activateSharedKey();
+  });
+
   // Configuración
   $("btn-settings").addEventListener("click", openSettings);
   $("banner-open-settings").addEventListener("click", openSettings);
@@ -223,6 +229,57 @@ function switchTab(which) {
 function updateBanner() {
   const key = settings.keys[settings.provider];
   els.banner.classList.toggle("hidden", Boolean(key));
+  // Sin clave compartida en el repo no se muestra el campo de código
+  const hasShared = typeof SHARED_KEYS !== "undefined" && SHARED_KEYS.gemini;
+  $("input-access-code").classList.toggle("hidden", !hasShared);
+  $("btn-access-code").classList.toggle("hidden", !hasShared);
+}
+
+/* ---------- Clave compartida del colegio ---------- */
+
+async function activateSharedKey() {
+  const code = $("input-access-code").value.trim();
+  const errEl = $("access-code-error");
+  errEl.classList.add("hidden");
+  if (!code) return;
+
+  const btn = $("btn-access-code");
+  btn.disabled = true;
+  const key = await decryptSharedKey("gemini", code);
+  btn.disabled = false;
+
+  if (key) {
+    settings.provider = "gemini";
+    settings.keys.gemini = key;
+    saveJSON("cw_settings", settings);
+    $("input-access-code").value = "";
+    updateBanner();
+    setStatus("Clave del colegio activada en este navegador ✓");
+  } else {
+    errEl.classList.remove("hidden");
+  }
+}
+
+async function decryptSharedKey(provider, code) {
+  const s = typeof SHARED_KEYS !== "undefined" ? SHARED_KEYS[provider] : null;
+  if (!s || !window.crypto?.subtle) return null;
+  const b64 = (x) => Uint8Array.from(atob(x), (c) => c.charCodeAt(0));
+  try {
+    const material = await crypto.subtle.importKey(
+      "raw", new TextEncoder().encode(code), "PBKDF2", false, ["deriveKey"]
+    );
+    const key = await crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt: b64(s.salt), iterations: 310000, hash: "SHA-256" },
+      material,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["decrypt"]
+    );
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64(s.iv) }, key, b64(s.data));
+    return new TextDecoder().decode(plain);
+  } catch {
+    return null; // código incorrecto
+  }
 }
 
 /* ---------- Archivos ---------- */

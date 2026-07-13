@@ -23,4 +23,4 @@ Sitio estático (HTML/CSS/JS puro, sin build) para GitHub Pages que corrige writ
 ## Notas
 
 - Los criterios oficiales ya están integrados (ver `criteria.js`). Los PDFs completos de las guías no están en el repo (pesan ~38 MB y no hacen falta en runtime).
-- **Nunca commitear API keys al repo**: el sitio es público. Las claves van solo en el navegador del usuario vía la pantalla de configuración.
+- **Nunca commitear API keys en texto plano**: el sitio es público y GitHub/Google las revocan automáticamente. La clave compartida del colegio vive **cifrada** en `shared-key.js` (AES-256-GCM + PBKDF2) y se desbloquea en el navegador con un código de acceso que NO está en el repo. Para regenerarla: `node tools/encrypt-key.mjs <API_KEY> <CODIGO> > shared-key.js`. El código de acceso vigente lo sabe el usuario (no escribirlo en ningún archivo del repo).

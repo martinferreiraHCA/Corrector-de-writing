@@ -32,8 +32,14 @@
 
   <!-- Aviso si no hay API key -->
   <div id="banner-no-key" class="banner hidden">
-    Para empezar, configurá tu clave de API (gratis con Google Gemini).
-    <button id="banner-open-settings" class="btn-link">Configurar ahora →</button>
+    <div class="banner-row" id="access-code-row">
+      <strong>Para empezar:</strong> ingresá el código de acceso del colegio
+      <input type="password" id="input-access-code" placeholder="Código de acceso" autocomplete="off" />
+      <button id="btn-access-code" class="btn-primary btn-small">Activar</button>
+      <span class="muted">o</span>
+      <button id="banner-open-settings" class="btn-link">usá tu propia clave de API →</button>
+    </div>
+    <div id="access-code-error" class="access-error hidden">Código incorrecto. Probá de nuevo.</div>
   </div>
 
   <!-- Formulario -->
@@ -181,6 +187,7 @@
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script src="criteria.js"></script>
+<script src="shared-key.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
