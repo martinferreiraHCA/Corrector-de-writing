@@ -1,11 +1,11 @@
-/* ===== Configuración de Firebase (login con Google + base de datos común) =====
+/* ===== Configuración de Firebase (base de datos común, sin login) =====
 
-   Mientras este valor sea null, el sitio funciona sin nube (sin login ni corpus).
+   Mientras este valor sea null, el sitio funciona sin nube (sin corpus común).
 
    Para activarlo:
    1. Entrá a https://console.firebase.google.com y creá un proyecto (sin Analytics).
-   2. Authentication → Sign-in method → habilitá "Google".
-   3. Authentication → Settings → Authorized domains → agregá: martinferreirahca.github.io
+   2. Authentication → Sign-in method → habilitá "Anónimo" (Anonymous).
+      (Es una sesión invisible: nadie tiene que loguearse; solo protege la base.)
    4. Firestore Database → Crear base de datos (modo producción, ubicación southamerica-east1)
       y en "Reglas" pegá las reglas que están en el README.
    5. Configuración del proyecto (⚙️) → Tus apps → agregar app Web (</>) → copiá el

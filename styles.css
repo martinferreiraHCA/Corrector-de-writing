@@ -69,46 +69,6 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.topbar-actions { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
-
-.auth-area { display: flex; align-items: center; }
-.btn-login {
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #fff;
-  color: var(--ink);
-  border: none;
-  border-radius: 10px;
-  padding: 0.5rem 0.9rem;
-  cursor: pointer;
-}
-.btn-login:hover { background: #f0f2f8; }
-.user-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 999px;
-  padding: 0.25rem 0.7rem 0.25rem 0.3rem;
-  font-size: 0.85rem;
-}
-.user-chip img { width: 26px; height: 26px; border-radius: 50%; background: #fff; }
-.btn-link-light {
-  font: inherit;
-  font-size: 0.8rem;
-  background: none;
-  border: none;
-  color: #ffd7d8;
-  cursor: pointer;
-  padding: 0;
-  text-decoration: underline;
-}
-
 .btn-icon {
   background: rgba(255,255,255,0.1);
   border: 1px solid rgba(255,255,255,0.25);

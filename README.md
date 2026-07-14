@@ -65,20 +65,18 @@ En cada corrección se envía automáticamente la escala del nivel elegido, y la
 
 Además hay una sección opcional de **criterios o instrucciones adicionales** (texto o PDF) por si querés ajustar la exigencia para un grupo en particular.
 
-## ☁️ Login con Google + corpus común de errores
+## ☁️ Corpus común de errores (sin login)
 
 El sitio incluye (desactivado hasta configurar Firebase):
 
-- **Entrar con Google**: con la nube activa, se pide iniciar sesión para usar el corrector.
-- **Base de datos común**: cada corrección se guarda automáticamente en Firestore con sus errores estructurados (texto original, tipo, corrección, explicación).
+- **Base de datos común**: cada corrección se guarda automáticamente en Firestore con sus errores estructurados (texto original, tipo, corrección, explicación). **Sin autenticación visible**: se usa una sesión anónima e invisible de Firebase, solo para que la base no quede abierta a escrituras de cualquier robot.
 - **📚 Corpus de errores frecuentes**: agrega los errores de todas las correcciones del colegio — un pequeño *Cambridge Learner Corpus* propio — agrupados por tipo, con los errores repetidos entre estudiantes destacados (×2, ×3…), filtrable por nivel.
 
 ### Activarlo (una sola vez, ~5 minutos)
 
 1. Entrá a [console.firebase.google.com](https://console.firebase.google.com) con la cuenta de Google del colegio → **Agregar proyecto** (ej. `corrector-hca`, sin Analytics).
-2. **Authentication → Comenzar → Sign-in method →** habilitá **Google**.
-3. **Authentication → Settings → Authorized domains →** agregá `martinferreirahca.github.io`.
-4. **Firestore Database → Crear base de datos** (modo producción; ubicación `southamerica-east1`). En la pestaña **Reglas**, pegá esto y publicá:
+2. **Authentication → Comenzar → Sign-in method →** habilitá **Anónimo** (Anonymous).
+3. **Firestore Database → Crear base de datos** (modo producción; ubicación `southamerica-east1`). En la pestaña **Reglas**, pegá esto y publicá:
 
    ```
    rules_version = '2';
@@ -95,8 +93,8 @@ El sitio incluye (desactivado hasta configurar Firebase):
    }
    ```
 
-   (Cualquier persona con cuenta de Google que entre al sitio puede leer y aportar. Para restringirlo a cuentas del colegio, agregá a cada `if`: `&& request.auth.token.email.matches('.*@hca[.]edu[.]uy')`.)
-5. **⚙️ Configuración del proyecto → Tus apps → agregar app Web (`</>`)** → copiá el objeto `firebaseConfig` y pegalo en `firebase-config.js` reemplazando el `null` (o pasáselo a Claude y lo integra). Ese objeto no es secreto: la seguridad la dan las reglas y los dominios autorizados.
+   (La sesión anónima cumple `request.auth != null`, así la base acepta escrituras solo desde navegadores que cargaron el sitio, no de cualquier pedido externo.)
+4. **⚙️ Configuración del proyecto → Tus apps → agregar app Web (`</>`)** → copiá el objeto `firebaseConfig` y pegalo en `firebase-config.js` reemplazando el `null` (o pasáselo a Claude y lo integra). Ese objeto no es secreto: la seguridad la dan las reglas de Firestore.
 
 **Privacidad:** en el corpus se guarda el texto de los writings; conviene que los estudiantes no escriban su nombre completo en la hoja, o taparlo en la foto.
 

@@ -1,6 +1,10 @@
-/* ===== Nube (Firebase): login con Google + base de datos común de correcciones =====
+/* ===== Nube (Firebase): base de datos común de correcciones, SIN login =====
    Módulo ES. Si FIREBASE_CONFIG es null o la carga falla, window.Cloud queda en null
-   y el sitio funciona igual que siempre (solo localStorage). */
+   y el sitio funciona igual que siempre (solo localStorage).
+
+   No hay autenticación visible: se usa una sesión anónima de Firebase (invisible
+   para el usuario) solo para que las reglas de Firestore puedan exigir
+   "request.auth != null" y la base no quede abierta a escrituras externas. */
 
 window.Cloud = null;
 
@@ -18,34 +22,15 @@ if (cfg && cfg.apiKey) {
     const app = initializeApp(cfg);
     const auth = authMod.getAuth(app);
     const db = fsMod.getFirestore(app);
-    const provider = new authMod.GoogleAuthProvider();
+
+    // Sesión anónima invisible (requiere habilitar "Anónimo" en Authentication)
+    await authMod.signInAnonymously(auth);
 
     window.Cloud = {
-      user: null,
-
-      onUser(cb) {
-        authMod.onAuthStateChanged(auth, (u) => {
-          window.Cloud.user = u;
-          cb(u);
-        });
-      },
-
-      async signIn() {
-        await authMod.signInWithPopup(auth, provider);
-      },
-
-      async signOut() {
-        await authMod.signOut(auth);
-      },
-
       /* Guarda una corrección en la colección común "corrections" */
       async saveCorrection(data) {
-        const u = auth.currentUser;
-        if (!u) throw new Error("Sin sesión");
         const ref = await fsMod.addDoc(fsMod.collection(db, "corrections"), {
-          uid: u.uid,
-          userName: u.displayName || "",
-          userEmail: u.email || "",
+          uid: auth.currentUser?.uid || "",
           createdAt: fsMod.serverTimestamp(),
           ...data,
         });

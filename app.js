@@ -437,41 +437,10 @@ function renderFileList() {
 function initCloudUI() {
   if (!window.Cloud) return; // sin Firebase configurado: el sitio sigue como siempre
 
-  $("auth-area").classList.remove("hidden");
   $("corpus-card").classList.remove("hidden");
-
-  $("btn-login").addEventListener("click", async () => {
-    try {
-      await Cloud.signIn();
-    } catch (err) {
-      console.error(err);
-      setStatus("No se pudo iniciar sesión con Google. Probá de nuevo.", true);
-    }
-  });
-  $("btn-logout").addEventListener("click", () => Cloud.signOut());
   $("btn-corpus").addEventListener("click", loadCorpus);
   $("corpus-level").addEventListener("change", loadCorpus);
-
-  Cloud.onUser((u) => {
-    $("btn-login").classList.toggle("hidden", Boolean(u));
-    $("user-chip").classList.toggle("hidden", !u);
-    if (u) {
-      $("user-name").textContent = (u.displayName || u.email || "").split(" ")[0];
-      $("user-pic").src = u.photoURL || "";
-      loadCorpus();
-    } else {
-      $("corpus-body").innerHTML = "";
-    }
-  });
-}
-
-/* Con la nube activa, se pide sesión iniciada para usar el sistema */
-function requireLogin() {
-  if (window.Cloud && !Cloud.user) {
-    setStatus("Entrá con Google (botón arriba a la derecha) para usar el corrector y sumar al corpus común.", true);
-    return false;
-  }
-  return true;
+  loadCorpus();
 }
 
 /* Extrae las filas de la tabla "🔍 Análisis Detallado de Errores" del markdown */
@@ -500,7 +469,7 @@ function parseErrorsFromMarkdown(md) {
 
 /* Guarda la corrección en la base común (si hay sesión) */
 async function saveToCloud(markdown) {
-  if (!window.Cloud || !Cloud.user) return;
+  if (!window.Cloud) return;
   try {
     const title = (markdown.match(/Nivel y Tipo de Texto:?\*{0,2}\s*\*{0,2}\s*\[?([^\n\]]+)/i)?.[1] || "").trim();
     const levelKey = (title.match(/\b(A2|B1|B2|C1|C2)\b/) || [])[1] || (CRITERIA_LEVEL_MAP[els.level.value] || "");
@@ -523,7 +492,7 @@ async function saveToCloud(markdown) {
 /* ---- Corpus: agregación y render ---- */
 
 async function loadCorpus() {
-  if (!window.Cloud || !Cloud.user) return;
+  if (!window.Cloud) return;
   const body = $("corpus-body");
   body.innerHTML = '<p class="muted"><span class="spinner"></span>Cargando corpus…</p>';
   try {
@@ -589,7 +558,7 @@ function renderCorpus(rows, levelFilter) {
       .slice(0, 15)
       .map(
         (r) =>
-          `<li><strong>${esc(r.title)}</strong>${r.score ? ` · ${esc(r.score)}` : ""} · ${esc(r.userName || "")} · ${
+          `<li><strong>${esc(r.title)}</strong>${r.score ? ` · ${esc(r.score)}` : ""} · ${
             r.createdAt ? new Date(r.createdAt).toLocaleDateString("es-UY") : ""
           }</li>`
       )
@@ -611,7 +580,6 @@ function normalizeTipo(t) {
 /* ---------- Transcripción con IA (lee manuscrita, no corrige) ---------- */
 
 async function transcribe() {
-  if (!requireLogin()) return;
   const provider = settings.provider;
   const key = settings.keys[provider];
   if (!key) {
@@ -813,7 +781,6 @@ async function pdfToImages(f) {
 /* ---------- Corrección ---------- */
 
 async function correct() {
-  if (!requireLogin()) return;
   const provider = settings.provider;
   const key = settings.keys[provider];
   if (!key) {
