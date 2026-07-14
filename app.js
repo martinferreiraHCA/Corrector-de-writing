@@ -109,7 +109,8 @@ for (const p of Object.keys(PROVIDERS)) {
     settings.models[p] = DEFAULT_SETTINGS.models[p];
   }
 }
-let history = loadJSON("cw_history", []);
+let savedCorrections = loadJSON("cw_history", []);
+if (!Array.isArray(savedCorrections)) savedCorrections = [];
 let writingFiles = []; // {name, mime, base64}
 let rubricFile = null; // {name, mime, base64}
 let currentMarkdown = "";
@@ -124,7 +125,11 @@ function loadJSON(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return deepClone(fallback);
-    return { ...deepClone(fallback), ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    // Si lo esperado es una lista (ej. el historial), devolverla tal cual:
+    // mezclarla como objeto la rompía y el sitio moría al arrancar.
+    if (Array.isArray(fallback)) return Array.isArray(parsed) ? parsed : deepClone(fallback);
+    return { ...deepClone(fallback), ...parsed };
   } catch {
     return deepClone(fallback);
   }
@@ -229,8 +234,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Historial
   $("btn-clear-history").addEventListener("click", () => {
     if (confirm("¿Borrar todo el historial de correcciones?")) {
-      history = [];
-      saveJSON("cw_history", history);
+      savedCorrections = [];
+      saveJSON("cw_history", savedCorrections);
       renderHistory();
     }
   });
@@ -1079,28 +1084,28 @@ async function copyResult() {
 function addToHistory(markdown) {
   const score = markdown.match(/Puntuaci[oó]n Estimada:?\*{0,2}\s*\*{0,2}\s*\[?(\d{1,2}\s*\/\s*\d{2})/i);
   const levelType = markdown.match(/Nivel y Tipo de Texto:?\*{0,2}\s*\*{0,2}\s*\[?([^\n\]]+)/i);
-  history.unshift({
+  savedCorrections.unshift({
     id: Date.now(),
     date: new Date().toLocaleString("es-UY", { dateStyle: "short", timeStyle: "short" }),
     title: (levelType?.[1] || "Writing").trim().replace(/[*\]]+$/, "").trim(),
     score: score ? score[1].replace(/\s/g, "") : null,
     markdown,
   });
-  if (history.length > 20) history = history.slice(0, 20);
+  if (savedCorrections.length > 20) savedCorrections = savedCorrections.slice(0, 20);
   try {
-    saveJSON("cw_history", history);
+    saveJSON("cw_history", savedCorrections);
   } catch {
     // localStorage lleno: guardamos menos entradas
-    history = history.slice(0, 5);
-    try { saveJSON("cw_history", history); } catch { /* sin espacio */ }
+    savedCorrections = savedCorrections.slice(0, 5);
+    try { saveJSON("cw_history", savedCorrections); } catch { /* sin espacio */ }
   }
   renderHistory();
 }
 
 function renderHistory() {
   els.historyList.innerHTML = "";
-  els.historyEmpty.classList.toggle("hidden", history.length > 0);
-  for (const item of history) {
+  els.historyEmpty.classList.toggle("hidden", savedCorrections.length > 0);
+  for (const item of savedCorrections) {
     const li = document.createElement("li");
     li.innerHTML = `
       <div class="history-meta">
@@ -1117,8 +1122,8 @@ function renderHistory() {
     });
     li.querySelector(".history-delete").addEventListener("click", (e) => {
       e.stopPropagation();
-      history = history.filter((h) => h.id !== item.id);
-      saveJSON("cw_history", history);
+      savedCorrections = savedCorrections.filter((h) => h.id !== item.id);
+      saveJSON("cw_history", savedCorrections);
       renderHistory();
     });
     els.historyList.appendChild(li);
