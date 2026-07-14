@@ -14,7 +14,7 @@ Plataforma web para corregir *writings* de exámenes de Cambridge English (A2 Ke
 1. En GitHub, entrá a **Settings → Pages** de este repositorio.
 2. En **Source** elegí **Deploy from a branch**.
 3. Branch: **main**, carpeta: **/ (root)** → **Save**.
-4. En 1-2 minutos el sitio queda en: `https://martinferrerahca.github.io/Corrector-de-writing/` (GitHub te muestra la URL exacta en esa misma pantalla).
+4. En 1-2 minutos el sitio queda en: `https://martinferreirahca.github.io/Corrector-de-writing/` (GitHub te muestra la URL exacta en esa misma pantalla).
 
 ## 🔑 Clave de API
 
@@ -77,7 +77,7 @@ El sitio incluye (desactivado hasta configurar Firebase):
 
 1. Entrá a [console.firebase.google.com](https://console.firebase.google.com) con la cuenta de Google del colegio → **Agregar proyecto** (ej. `corrector-hca`, sin Analytics).
 2. **Authentication → Comenzar → Sign-in method →** habilitá **Google**.
-3. **Authentication → Settings → Authorized domains →** agregá `martinferrerahca.github.io`.
+3. **Authentication → Settings → Authorized domains →** agregá `martinferreirahca.github.io`.
 4. **Firestore Database → Crear base de datos** (modo producción; ubicación `southamerica-east1`). En la pestaña **Reglas**, pegá esto y publicá:
 
    ```

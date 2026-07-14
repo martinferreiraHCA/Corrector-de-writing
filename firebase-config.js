@@ -5,7 +5,7 @@
    Para activarlo:
    1. Entrá a https://console.firebase.google.com y creá un proyecto (sin Analytics).
    2. Authentication → Sign-in method → habilitá "Google".
-   3. Authentication → Settings → Authorized domains → agregá: martinferrerahca.github.io
+   3. Authentication → Settings → Authorized domains → agregá: martinferreirahca.github.io
    4. Firestore Database → Crear base de datos (modo producción, ubicación southamerica-east1)
       y en "Reglas" pegá las reglas que están en el README.
    5. Configuración del proyecto (⚙️) → Tus apps → agregar app Web (</>) → copiá el

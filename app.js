@@ -889,25 +889,54 @@ async function fetchWithTimeout(url, options, ms = 240000) {
   }
 }
 
+/* Errores pasajeros del servicio (saturación): conviene reintentar solos */
+const TRANSIENT_STATUS = new Set([500, 503, 529]);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function callGemini(key, model, system, userText, files) {
   const parts = files.map((f) => ({
     inline_data: { mime_type: f.mime, data: f.base64 },
   }));
   parts.push({ text: userText });
+  const body = JSON.stringify({
+    system_instruction: { parts: [{ text: system }] },
+    contents: [{ role: "user", parts }],
+    generationConfig: { temperature: 0.4, maxOutputTokens: 32768 },
+  });
 
+  // Plan de intentos: 2 veces el modelo elegido; si Google sigue saturado,
+  // una última vez con Flash-Lite (suele tener capacidad cuando Flash no).
+  const plan = [model, model];
+  if (model !== "gemini-flash-lite-latest") plan.push("gemini-flash-lite-latest");
+
+  let lastErr;
+  for (let i = 0; i < plan.length; i++) {
+    try {
+      return await geminiOnce(key, plan[i], body);
+    } catch (err) {
+      lastErr = err;
+      if (!TRANSIENT_STATUS.has(err.status) || i === plan.length - 1) throw err;
+      const esLite = plan[i + 1] !== model;
+      setStatus(
+        `<span class="spinner"></span>El servicio de Google está saturado; ${
+          esLite ? "probando con el modelo liviano (Flash-Lite)" : "reintentando"
+        }… (intento ${i + 2} de ${plan.length})`
+      );
+      await sleep(3000 + i * 3000);
+    }
+  }
+  throw lastErr;
+}
+
+async function geminiOnce(key, model, body) {
   const res = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: system }] },
-        contents: [{ role: "user", parts }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 32768 },
-      }),
+      body,
     }
   );
-
   if (!res.ok) throw await apiError(res);
   const data = await res.json();
   const out = data.candidates?.[0]?.content?.parts
@@ -926,30 +955,40 @@ async function callAnthropic(key, model, system, userText, files) {
   );
   content.push({ type: "text", text: userText });
 
-  const res = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 8192,
-      system,
-      messages: [{ role: "user", content }],
-    }),
-  });
-
-  if (!res.ok) throw await apiError(res);
-  const data = await res.json();
-  const out = data.content
-    ?.filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-  if (!out) throw new Error("La IA no devolvió texto. Probá de nuevo.");
-  return out;
+  let lastErr;
+  for (let intento = 1; intento <= 3; intento++) {
+    try {
+      const res = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 8192,
+          system,
+          messages: [{ role: "user", content }],
+        }),
+      });
+      if (!res.ok) throw await apiError(res);
+      const data = await res.json();
+      const out = data.content
+        ?.filter((b) => b.type === "text")
+        .map((b) => b.text)
+        .join("");
+      if (!out) throw new Error("La IA no devolvió texto. Probá de nuevo.");
+      return out;
+    } catch (err) {
+      lastErr = err;
+      if (!TRANSIENT_STATUS.has(err.status) || intento === 3) throw err;
+      setStatus(`<span class="spinner"></span>El servicio de Claude está saturado; reintentando… (intento ${intento + 1} de 3)`);
+      await sleep(3000 * intento);
+    }
+  }
+  throw lastErr;
 }
 
 async function apiError(res) {
@@ -975,8 +1014,8 @@ function friendlyError(err) {
     return "Se alcanzó el límite de uso gratuito de la API. Esperá un minuto y probá de nuevo.";
   if (err.status === 413 || msg.includes("payload size") || msg.includes("request entity too large"))
     return "Los archivos son demasiado pesados para la API. Sacá alguno o usá fotos más livianas.";
-  if (err.status === 529 || err.status >= 500)
-    return "El servicio de IA está sobrecargado. Probá de nuevo en unos segundos.";
+  if (err.status === 503 || err.status === 529 || err.status >= 500)
+    return "El servicio de IA está saturado en este momento (pasa a veces con la capa gratuita). Ya se reintentó automáticamente; esperá unos minutos y probá de nuevo, o cambiá de modelo en ⚙️.";
   if (msg.includes("failed to fetch"))
     return "No se pudo conectar con la API. Revisá tu conexión a internet.";
   return "Error: " + (err.message || "desconocido").slice(0, 300);
