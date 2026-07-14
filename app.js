@@ -114,13 +114,19 @@ let writingFiles = []; // {name, mime, base64}
 let rubricFile = null; // {name, mime, base64}
 let currentMarkdown = "";
 
+/* structuredClone no existe en navegadores viejos (Chrome <98, Safari <15.4).
+   Declarada como function (no const) para que esté disponible desde el inicio. */
+function deepClone(o) {
+  return typeof structuredClone === "function" ? structuredClone(o) : JSON.parse(JSON.stringify(o));
+}
+
 function loadJSON(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return structuredClone(fallback);
-    return { ...structuredClone(fallback), ...JSON.parse(raw) };
+    if (!raw) return deepClone(fallback);
+    return { ...deepClone(fallback), ...JSON.parse(raw) };
   } catch {
-    return structuredClone(fallback);
+    return deepClone(fallback);
   }
 }
 function saveJSON(key, value) {
@@ -186,6 +192,17 @@ document.addEventListener("DOMContentLoaded", () => {
     })
   );
   els.dropzone.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
+
+  // Si sueltan la foto fuera de la zona de carga, que no navegue fuera del
+  // sitio: se acepta el archivo igual, caiga donde caiga.
+  window.addEventListener("dragover", (e) => e.preventDefault());
+  window.addEventListener("drop", (e) => {
+    e.preventDefault();
+    if (e.dataTransfer?.files?.length) {
+      switchTab("file");
+      addFiles(e.dataTransfer.files);
+    }
+  });
 
   // Criterios
   els.rubricText.addEventListener("input", () =>

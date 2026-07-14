@@ -13,6 +13,24 @@
 </head>
 <body>
 
+<script>
+/* Red de seguridad (sintaxis vieja a propósito): si el navegador no soporta
+   algo del sitio, muestra el error en pantalla en vez de fallar en silencio. */
+window.addEventListener("error", function (e) {
+  try {
+    var el = document.getElementById("js-error-bar");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "js-error-bar";
+      el.style.cssText = "background:#E21C21;color:#fff;padding:10px 16px;font:14px sans-serif;text-align:center";
+      document.body.insertBefore(el, document.body.firstChild);
+    }
+    el.textContent = "⚠️ Error del navegador: " + (e.message || "desconocido") +
+      " — Probá actualizar el navegador (Chrome/Edge/Firefox reciente) y avisale a Martín este mensaje.";
+  } catch (err) {}
+});
+</script>
+
 <header class="topbar">
   <div class="topbar-inner">
     <div class="brand">
